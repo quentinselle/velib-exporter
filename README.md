@@ -2,12 +2,13 @@
 
 Want to export your stats from https://www.velib-metropole.fr/ ?
 
-From this ugly interface:
-![](https://user-images.githubusercontent.com/62110608/154845584-ec556ac1-5d1b-4527-b46a-7b72ef4241c4.png)
+from this ugly interface:
+
+![](https://user-images.githubusercontent.com/62110608/154846420-f89e2604-7d30-40a7-8344-97f55622e355.png)
 
 to:
 
-TODO: insert Grafana screenshot here
+_TODO: insert Grafana screenshot here_
 
 ## Features
 
@@ -68,11 +69,11 @@ Usage of velib-exporter:
         Velib API token
 ```
 
-TODO: add tutorial on how to get the token
+_TODO: add tutorial on how to get the token_
 
 ## Grafana
 
-TODO: insert grafana dashboard ID
+_TODO: insert grafana dashboard ID_
 
 ---
 
