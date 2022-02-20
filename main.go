@@ -96,7 +96,7 @@ func main() {
 }
 
 func updateProm(c *api.APIVelibClient) {
-	stats, err := c.GetUsersStats()
+	stats, err := c.GetUserStats()
 	if err != nil {
 		fetchingErrors.Inc()
 		logrus.WithError(err).Error("Error while scrapping Velib users statistics")
