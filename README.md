@@ -12,7 +12,7 @@ _TODO: insert Grafana screenshot here_
 
 ## Features
 
-- Your total Velib trip number
+- Your total Velib trips number
 - Your total distance in Velib (in km)
 - Your total distance in electrical Velib (in km)
 - Your total distance in mechanical Velib (in km)
@@ -45,7 +45,7 @@ velib_trip_highest_distance 6554
 velib_trip_number 25
 ```
 
-ℹ️ Stats are refreshed every hours.
+ℹ️ Stats are refreshed every every half hour.
 
 ## Installation
 
@@ -58,6 +58,7 @@ $ go build
 ## Usage
 
 ```console
+$ ./velib-exporter -help
 Usage of velib-exporter:
   -address string
         Exporter listening address (default "127.0.0.1")

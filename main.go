@@ -83,7 +83,7 @@ func main() {
 	c := api.NewAPIVelibClient(token)
 
 	s := gocron.NewScheduler(time.UTC)
-	s.Every(1).Hour().Do(updateProm, c)
+	s.Every(30).Minute().Do(updateProm, c)
 	s.StartAsync()
 
 	http.Handle("/metrics", promhttp.Handler())
