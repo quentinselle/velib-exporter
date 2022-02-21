@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/go-co-op/gocron"
@@ -40,6 +41,11 @@ var (
 		Name:      "trip_average_duration",
 		Help:      "Velib trip average duration in minutes",
 	})
+	tripAverageDistance = prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: namespace,
+		Name:      "trip_average_distance",
+		Help:      "Velib trip average distance in meters",
+	})
 	tripHighestDistance = prometheus.NewGauge(prometheus.GaugeOpts{
 		Namespace: namespace,
 		Name:      "trip_highest_distance",
@@ -55,6 +61,11 @@ var (
 		Name:      "fetching_errors",
 		Help:      "Counter of errors while scrapping velib-metropole.fr",
 	})
+	trip = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: namespace,
+		Name:      "trip",
+		Help:      "Velib trip details",
+	}, []string{"start_date", "end_date", "average_speed", "co2_saved_total"})
 )
 
 func main() {
@@ -83,7 +94,8 @@ func main() {
 	c := api.NewAPIVelibClient(token)
 
 	s := gocron.NewScheduler(time.UTC)
-	s.Every(30).Minute().Do(updateProm, c)
+	s.Every(30).Minute().Do(updateUsersStats, c)
+	s.Every(60).Minute().Do(updateUsersLastRides, c)
 	s.StartAsync()
 
 	http.Handle("/metrics", promhttp.Handler())
@@ -95,7 +107,7 @@ func main() {
 	}
 }
 
-func updateProm(c *api.APIVelibClient) {
+func updateUsersStats(c *api.APIVelibClient) {
 	stats, err := c.GetUserStats()
 	if err != nil {
 		fetchingErrors.Inc()
@@ -104,20 +116,59 @@ func updateProm(c *api.APIVelibClient) {
 	}
 
 	logrus.WithFields(logrus.Fields{
-		"distance_total":        stats.DistanceTotal,
-		"distance_electrical":   stats.DistanceElectrical,
-		"distance_mechanical":   stats.DistanceMechanical,
-		"trip_number":           stats.TripNumber,
-		"trip_average_duration": stats.TripAverageDuration,
-		"trip_highest_distance": stats.TripHighestDistance,
-		"co2_saved_total":       stats.TotalSavedCarbonDioxide,
-	}).Info("Updating velib-exporter gauge")
+		"distance_total":      stats.GeneralDetails.CustomerIndicators.DistanceGlobalCounter,
+		"distance_electrical": stats.GeneralDetails.CustomerIndicators.DistanceElectricalCounter,
+		"distance_mechanical": stats.GeneralDetails.CustomerIndicators.DistanceGlobalCounter -
+			stats.GeneralDetails.CustomerIndicators.DistanceElectricalCounter,
+		"trip_number":           stats.GeneralDetails.CustomerIndicators.TripCounter,
+		"trip_average_duration": stats.GeneralDetails.CustomerIndicators.TripAverageDuration,
+		"trip_highest_distance": stats.GeneralDetails.CustomerIndicators.TripHighestDistance,
+		"co2_saved_total":       stats.GeneralDetails.CustomerIndicators.GlobalSavedCarbonDioxide,
+	}).Info("Updating velib-exporter user gauge")
 
-	distanceTotal.Set(float64(stats.DistanceTotal))
-	distanceElectrical.Set(float64(stats.DistanceElectrical))
-	distanceMechanical.Set(float64(stats.DistanceMechanical))
-	tripNumber.Set(float64(stats.TripNumber))
-	tripAverageDuration.Set(float64(stats.TripAverageDuration))
-	tripHighestDistance.Set(float64(stats.TripHighestDistance))
-	totalSavedCarbonDioxide.Set(float64(stats.TotalSavedCarbonDioxide))
+	distanceTotal.Set(float64(stats.GeneralDetails.CustomerIndicators.DistanceGlobalCounter))
+	distanceElectrical.Set(float64(stats.GeneralDetails.CustomerIndicators.DistanceElectricalCounter))
+	distanceMechanical.Set(float64(stats.GeneralDetails.CustomerIndicators.DistanceGlobalCounter -
+		stats.GeneralDetails.CustomerIndicators.DistanceElectricalCounter))
+	tripNumber.Set(float64(stats.GeneralDetails.CustomerIndicators.TripCounter))
+	tripAverageDuration.Set(float64(stats.GeneralDetails.CustomerIndicators.TripAverageDuration))
+	tripAverageDistance.Set(float64(stats.GeneralDetails.CustomerIndicators.DistanceGlobalCounter / stats.GeneralDetails.CustomerIndicators.TripCounter))
+	tripHighestDistance.Set(float64(stats.GeneralDetails.CustomerIndicators.TripHighestDistance))
+	totalSavedCarbonDioxide.Set(stats.GeneralDetails.CustomerIndicators.GlobalSavedCarbonDioxide)
+}
+
+func updateUsersLastRides(c *api.APIVelibClient) {
+	rides, err := c.GetUserRides(&api.VelibUserRideRequest{
+		Limit:  20,
+		Offset: 0,
+	})
+
+	if err != nil {
+		fetchingErrors.Inc()
+		logrus.WithError(err).Error("Error while scrapping Velib users statistics")
+		return
+	}
+
+	for _, ride := range rides.WalletOperations {
+
+		logrus.WithFields(logrus.Fields{
+			"start_date":      ride.StartDate,
+			"end_date":        ride.EndDate,
+			"average_speed":   ride.Parameter3.AverageSpeed,
+			"distance":        ride.Parameter3.Distance,
+			"co2_saved_total": ride.Parameter3.SavedCarbonDioxide,
+		}).Info("Updating velib-exporter ride gauge")
+
+		distance, err := strconv.ParseFloat(ride.Parameter3.Distance, 64)
+		if err != nil {
+			logrus.Error("Invalid distance, skipping row")
+			continue
+		}
+		trip.With(prometheus.Labels{
+			"start_date":      fmt.Sprintf("%d", ride.StartDate),
+			"end_date":        fmt.Sprintf("%d", ride.EndDate),
+			"average_speed":   fmt.Sprintf("%f", ride.Parameter3.AverageSpeed),
+			"co2_saved_total": fmt.Sprintf("%f", ride.Parameter3.SavedCarbonDioxide),
+		}).Set(distance)
+	}
 }

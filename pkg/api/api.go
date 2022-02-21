@@ -23,12 +23,47 @@ func NewAPIVelibClient(token *string) *APIVelibClient {
 	}
 }
 
-var (
-	velibAPIUserStatsPath = "/getAllInfosUser"
-	velibAPIRidesListPath = "/getCourseList"
-)
+type paginationParams struct {
+	offset int
+	limit  int
+}
 
-type velibUserStatsResponse struct {
+type requestParams struct {
+	path       string
+	method     string
+	pagination paginationParams
+}
+
+func (c *APIVelibClient) doRequest(params *requestParams) (*http.Response, error) {
+	req, err := http.NewRequest(params.method, c.Endpoint+params.path, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.AddCookie(&http.Cookie{
+		Name:  "BEARER",
+		Value: *c.Token,
+	})
+
+	q := req.URL.Query()
+	if params.pagination.limit != 0 {
+		q.Add("limit", strconv.Itoa(params.pagination.limit))
+	}
+	if params.pagination.offset != 0 {
+		q.Add("offset", strconv.Itoa(params.pagination.offset))
+	}
+	req.URL.RawQuery = q.Encode()
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+var velibAPIUserStatsPath = "/getAllInfosUser"
+
+type VelibUserStatsResponse struct {
 	GeneralDetails struct {
 		CustomerIndicators struct {
 			DistanceGlobalCounter     int     `json:"distanceGlobalCounter"`
@@ -41,52 +76,32 @@ type velibUserStatsResponse struct {
 	} `json:"generalDetails"`
 }
 
-type VelibUserStats struct {
-	DistanceTotal           int
-	DistanceElectrical      int
-	DistanceMechanical      int
-	TripNumber              int
-	TripAverageDuration     int
-	TripHighestDistance     int
-	TotalSavedCarbonDioxide float64
-}
-
-func (c *APIVelibClient) GetUserStats() (*VelibUserStats, error) {
-	req, err := http.NewRequest(http.MethodGet, c.Endpoint+velibAPIUserStatsPath, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	req.AddCookie(&http.Cookie{
-		Name:  "BEARER",
-		Value: *c.Token,
+func (c *APIVelibClient) GetUserStats() (*VelibUserStatsResponse, error) {
+	httpResp, err := c.doRequest(&requestParams{
+		path:   velibAPIUserStatsPath,
+		method: http.MethodGet,
 	})
-
-	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer httpResp.Body.Close()
 
-	var velibResp velibUserStatsResponse
-	err = json.NewDecoder(resp.Body).Decode(&velibResp)
+	var velibResp VelibUserStatsResponse
+	err = json.NewDecoder(httpResp.Body).Decode(&velibResp)
 	if err != nil {
 		return nil, err
 	}
 
-	return &VelibUserStats{
-		DistanceTotal:      velibResp.GeneralDetails.CustomerIndicators.DistanceGlobalCounter,
-		DistanceElectrical: velibResp.GeneralDetails.CustomerIndicators.DistanceElectricalCounter,
-		DistanceMechanical: velibResp.GeneralDetails.CustomerIndicators.DistanceGlobalCounter -
-			velibResp.GeneralDetails.CustomerIndicators.DistanceElectricalCounter,
-		TripNumber:              velibResp.GeneralDetails.CustomerIndicators.TripCounter,
-		TripAverageDuration:     velibResp.GeneralDetails.CustomerIndicators.TripAverageDuration,
-		TripHighestDistance:     velibResp.GeneralDetails.CustomerIndicators.TripHighestDistance,
-		TotalSavedCarbonDioxide: velibResp.GeneralDetails.CustomerIndicators.GlobalSavedCarbonDioxide,
-	}, nil
+	return &velibResp, nil
 }
 
-type velibUserRidesResponse struct {
+var velibAPIRidesListPath = "/getCourseList"
+
+type VelibUserRideRequest struct {
+	Limit  int
+	Offset int
+}
+type VelibUserRidesResponse struct {
 	Paging struct {
 		TotalNumberOfRecords int `json:"totalNumberOfRecords"`
 	} `json:"paging"`
@@ -101,65 +116,26 @@ type velibUserRidesResponse struct {
 	} `json:"walletOperations"`
 }
 
-type VelibUserRide struct {
-	StartDate          int64
-	EndDate            int64
-	Distance           float64
-	AverageSpeed       float64
-	SavedCarbonDioxide float64
-}
+func (c *APIVelibClient) GetUserRides(req *VelibUserRideRequest) (*VelibUserRidesResponse, error) {
 
-func (c *APIVelibClient) GetUserRides() ([]*VelibUserRide, error) {
-	var velibUserRides []*VelibUserRide
-
-	offset, limit := 0, 10
-	for {
-		req, err := http.NewRequest(http.MethodGet, c.Endpoint+velibAPIRidesListPath, nil)
-		if err != nil {
-			return nil, err
-		}
-
-		req.AddCookie(&http.Cookie{
-			Name:  "BEARER",
-			Value: *c.Token,
-		})
-
-		q := req.URL.Query()
-		q.Add("limit", "10")
-		q.Add("offset", strconv.Itoa(offset))
-		req.URL.RawQuery = q.Encode()
-
-		resp, err := c.HTTPClient.Do(req)
-		if err != nil {
-			return nil, err
-		}
-		defer resp.Body.Close()
-
-		var velibResp velibUserRidesResponse
-		err = json.NewDecoder(resp.Body).Decode(&velibResp)
-		if err != nil {
-			return nil, err
-		}
-
-		for _, ride := range velibResp.WalletOperations {
-			distance, err := strconv.ParseFloat(ride.Parameter3.Distance, 64)
-			if err != nil {
-				return nil, err
-			}
-
-			velibUserRide := &VelibUserRide{
-				StartDate:          ride.StartDate,
-				EndDate:            ride.EndDate,
-				Distance:           distance,
-				AverageSpeed:       ride.Parameter3.AverageSpeed,
-				SavedCarbonDioxide: ride.Parameter3.SavedCarbonDioxide,
-			}
-			velibUserRides = append(velibUserRides, velibUserRide)
-		}
-		if (offset + limit) > velibResp.Paging.TotalNumberOfRecords {
-			break
-		}
-		offset += limit
+	httpResp, err := c.doRequest(&requestParams{
+		path:   velibAPIRidesListPath,
+		method: http.MethodGet,
+		pagination: paginationParams{
+			limit:  req.Limit,
+			offset: req.Offset,
+		},
+	})
+	if err != nil {
+		return nil, err
 	}
-	return velibUserRides, nil
+	defer httpResp.Body.Close()
+
+	var velibResp VelibUserRidesResponse
+	err = json.NewDecoder(httpResp.Body).Decode(&velibResp)
+	if err != nil {
+		return nil, err
+	}
+
+	return &velibResp, nil
 }
