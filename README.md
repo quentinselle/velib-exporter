@@ -70,7 +70,7 @@ Usage of velib-exporter:
         Velib API token
 ```
 
-_TODO: add tutorial on how to get the token_
+To get the `-token` value, go on: https://www.velib-metropole.fr/private/account#/, login and inspect the network requests, then check the `getAllInfoUsers` request and get the `BEARER` cookie value.
 
 ## Grafana
 
