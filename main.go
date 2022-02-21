@@ -88,8 +88,11 @@ func main() {
 	prometheus.MustRegister(distanceMechanical)
 	prometheus.MustRegister(tripNumber)
 	prometheus.MustRegister(tripAverageDuration)
+	prometheus.MustRegister(tripAverageDistance)
 	prometheus.MustRegister(tripHighestDistance)
 	prometheus.MustRegister(totalSavedCarbonDioxide)
+	prometheus.MustRegister(fetchingErrors)
+	prometheus.MustRegister(trip)
 
 	c := api.NewAPIVelibClient(token)
 
@@ -122,6 +125,7 @@ func updateUsersStats(c *api.APIVelibClient) {
 			stats.GeneralDetails.CustomerIndicators.DistanceElectricalCounter,
 		"trip_number":           stats.GeneralDetails.CustomerIndicators.TripCounter,
 		"trip_average_duration": stats.GeneralDetails.CustomerIndicators.TripAverageDuration,
+		"trip_average_distance": stats.GeneralDetails.CustomerIndicators.DistanceGlobalCounter / stats.GeneralDetails.CustomerIndicators.TripCounter,
 		"trip_highest_distance": stats.GeneralDetails.CustomerIndicators.TripHighestDistance,
 		"co2_saved_total":       stats.GeneralDetails.CustomerIndicators.GlobalSavedCarbonDioxide,
 	}).Info("Updating velib-exporter user gauge")
