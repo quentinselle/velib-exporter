@@ -8,7 +8,7 @@ from this ugly interface:
 
 to:
 
-![](https://user-images.githubusercontent.com/62110608/154950183-57a2a441-b64b-4ab4-a3ac-7e56317cf76b.png)
+![](https://user-images.githubusercontent.com/62110608/155003983-b44fd6f4-5782-481f-98a2-4fe49ebed5df.png)
 
 ## Features
 
@@ -74,7 +74,7 @@ To get the `-token` value, go on: https://www.velib-metropole.fr/private/account
 
 ## Grafana
 
-_TODO: insert grafana dashboard ID_
+Get the dahsboard: https://grafana.com/grafana/dashboards/15787
 
 ---
 
