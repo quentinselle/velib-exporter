@@ -4,11 +4,11 @@ Want to export your stats from https://www.velib-metropole.fr/ ?
 
 from this ugly interface:
 
-![](https://user-images.githubusercontent.com/62110608/154846420-f89e2604-7d30-40a7-8344-97f55622e355.png)
+![](https://user-images.githubusercontent.com/62110608/154950495-7ee7226b-41fc-41e8-b715-bc670187a18d.png)
 
 to:
 
-_TODO: insert Grafana screenshot here_
+![](https://user-images.githubusercontent.com/62110608/154950183-57a2a441-b64b-4ab4-a3ac-7e56317cf76b.png)
 
 ## Features
 
